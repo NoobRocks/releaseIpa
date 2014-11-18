@@ -194,6 +194,15 @@ def uploadToGoogleDrive(filePaths, transferInfo):
         filesUploaded.append(uploadedFile['webContentLink'])
     return filesUploaded
     
+def FTPMakeWholeDirectory(FTPClient, directory):
+    components = directory.split('/')
+    for component in components:
+        try:
+            FTPClient.cwd(component)
+        except ftplib.error_perm:
+            FTPClient.mkd(component)
+            FTPClient.cwd(component)
+    
 def uploadToFTPServer(filePaths, transferInfo):
     if not filePaths:
         return []
@@ -210,8 +219,7 @@ def uploadToFTPServer(filePaths, transferInfo):
             FTPClient.cwd(buildDir)
         except ftplib.error_perm:
             print '%s may not exist. Create one' % buildDir
-            FTPClient.mkd(buildDir)
-            FTPClient.cwd(buildDir)
+            FTPMakeWholeDirectory(FTPClient, buildDir)
         for filePath in filePaths:
             FTPCommand = 'STOR %s' % os.path.split(filePath)[1]
             fileHandles.append(open(filePath, 'rb'))
