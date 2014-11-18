@@ -1,0 +1,41 @@
+﻿{
+"APP_VERSION": "0.1",
+"FRIENDLY_APP_NAME": "app_name",
+"EXPORT_PATH_PREFIX": "/my releases/",
+"INFO_PLIST_PATH": "./project/project-Info.plist",
+"FTP_SERVER_URL": "ftp://user:password@host",
+"FTP_SERVER_BUILD_DIRECTORY": "project/dir",
+"INCREMENT_BUILD_NUMBER": true,
+"BUILD_PROFILES": [
+{
+"bundleIdentifier": "com.example",
+"scheme": "scheme_name",
+"ipaNameSuffix": "",
+"provisioningProfile": "provisioning_profile_name",
+"uploadsToGoogleDrive": true,
+"uploadsToFTPServer": true,
+"versionDescription": ""
+}
+],
+"SVN_USER": "user_name",
+"SVN_PASSWORD": "user_password",
+"COMMIT_LOG_TEMPLATE": "[WHAT]\nrelease %s\n[WHY]\n[HOW]",
+"MAIL_TRANSFER_INFO": {
+"SMTPServer": "0.0.0.0",
+"SMTPUser": "domain\\user",
+"SMTPUserAddress": "<user@domain>",
+"SMTPPassword": "password",
+"bodyFile": "mailBody.html",
+"titleTemplate": "iOS %s v%s已發佈",
+"toUsers": [
+"user1@domain",
+"user2@domain",
+"user3@domain"
+]
+},
+"GOOGLE_API_CLIENT_INFO": {
+"CLIENT_ID": "client_id",
+"CLIENT_SECRET": "client_secret",
+"GOOGLE_DRIVE_PATH": "name"
+}
+}
