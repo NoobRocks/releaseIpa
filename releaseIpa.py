@@ -136,6 +136,36 @@ def exportIpa(ipaInfo):
     
     return exportPath
     
+def GoogleDriveMakeWholeDirectory(driveService, directory):
+    components = splitPathIntoComponents(directory)
+    folderID = None
+    folderCreated = False
+    for component in components:
+        if not folderCreated:
+            if folderID:
+                queriedFolder = driveService.children().list(folderId = folderID, q = 'mimeType=\'application/vnd.google-apps.folder\' and title=\'%s\'' % component).execute()
+            else:
+                queriedFolder = driveService.files().list(q = 'mimeType=\'application/vnd.google-apps.folder\' and title=\'%s\'' % component).execute()
+        if folderCreated or len(queriedFolder['items']) < 1:
+            if folderID:
+                body = {
+                    'title': component,
+                    'mimeType': 'application/vnd.google-apps.folder',
+                    'parents': [{
+                    	'id': folderID
+                    }]
+                }
+            else:
+                body = {
+                    'title': component,
+                    'mimeType': 'application/vnd.google-apps.folder'
+                }
+            folderID = driveService.files().insert(body = body).execute()['id']
+            folderCreated = True
+        else:
+            folderID = queriedFolder['items'][0]['id']
+    return folderID
+    
 def uploadToGoogleDrive(filePaths, transferInfo):
     if not filePaths:
         return []
@@ -156,18 +186,7 @@ def uploadToGoogleDrive(filePaths, transferInfo):
     drive_service = build('drive', 'v2', http=http)
 
     filesUploaded = []
-    # find target folder
-    targetFolder = drive_service.files().list(q = 'mimeType=\'application/vnd.google-apps.folder\' and title=\'%s\'' % transferInfo['GOOGLE_DRIVE_PATH']).execute()
-    if len(targetFolder['items']) < 1:
-        # create target folder
-        print '%s does not exist. Create one' % transferInfo['GOOGLE_DRIVE_PATH']
-        body = {
-            'title': transferInfo['GOOGLE_DRIVE_PATH'],
-            'mimeType': 'application/vnd.google-apps.folder'
-        }
-        targetFolder = drive_service.files().insert(body = body).execute()
-    else:
-        targetFolder = targetFolder['items'][0]
+    targetFolderID = GoogleDriveMakeWholeDirectory(drive_service, transferInfo['GOOGLE_DRIVE_PATH'])
     for filePath in filePaths:
         # upload the file
         media_body = MediaFileUpload(filePath, mimetype='application/octet-stream', resumable=True)
@@ -176,7 +195,7 @@ def uploadToGoogleDrive(filePaths, transferInfo):
             'mimeType': 'application/octet-stream',
             'parents': [{
   	            'kind': 'drive#fileLink',
-  	            'id': targetFolder['id']
+  	            'id': targetFolderID
             }]
         }
         uploadedFile = drive_service.files().insert(body = body, media_body = media_body).execute()
@@ -194,8 +213,22 @@ def uploadToGoogleDrive(filePaths, transferInfo):
         filesUploaded.append(uploadedFile['webContentLink'])
     return filesUploaded
     
+def splitPathIntoComponents(path):
+    components = []
+    if not isinstance(path, basestring):
+        return components
+    
+    while True:
+        pathTuple = os.path.split(path)
+        components.insert(0, pathTuple[1])
+        path = pathTuple[0]        
+        if not path:
+            break
+            
+    return components
+    
 def FTPMakeWholeDirectory(FTPClient, directory):
-    components = directory.split('/')
+    components = splitPathIntoComponents(directory)
     for component in components:
         try:
             FTPClient.cwd(component)
