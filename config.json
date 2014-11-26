@@ -1,4 +1,4 @@
-﻿{
+{
 "APP_VERSION": "0.1",
 "FRIENDLY_APP_NAME": "app_name",
 "EXPORT_PATH_PREFIX": "/my releases/",
@@ -12,6 +12,7 @@
 "scheme": "scheme_name",
 "ipaNameSuffix": "",
 "provisioningProfile": "provisioning_profile_name",
+"signingIdentity": "signing_identity",
 "uploadsToGoogleDrive": true,
 "uploadsToFTPServer": true,
 "versionDescription": ""

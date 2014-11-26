@@ -87,6 +87,8 @@ def issueCommand(command):
     
 def incrementBuildNumber(appBuild):
     return str(int(appBuild) + 1)
+    
+optionGenerator = lambda name, value: '%s "%s"' % (name, value) if name and value else name or '"%s"' % value
 
 def exportIpa(ipaInfo):
     # edit plist
@@ -127,8 +129,17 @@ def exportIpa(ipaInfo):
 
     # export
     exportPath = os.path.join(outputFolder, buildName + '.ipa')
+    exportOptions = []
+    exportOptions.append(optionGenerator('-exportArchive', ''))
+    exportOptions.append(optionGenerator('-exportFormat', 'ipa'))
+    exportOptions.append(optionGenerator('-archivePath', archivePath))
+    exportOptions.append(optionGenerator('-exportPath', exportPath))
     exportProvisioningProfile = ipaInfo['provisioningProfile']
-    exportCommand = 'xcodebuild -exportArchive -exportFormat ipa -archivePath "%s" -exportPath "%s" -exportProvisioningProfile "%s"' % (archivePath, exportPath, exportProvisioningProfile)
+    if exportProvisioningProfile:
+        exportOptions.append(optionGenerator('-exportProvisioningProfile', exportProvisioningProfile))
+    else:
+        exportOptions.append(optionGenerator('-exportSigningIdentity', ipaInfo['signingIdentity']))    
+    exportCommand = 'xcodebuild %s' % ' '.join(exportOptions)
     if os.path.exists(exportPath):
         os.remove(exportPath)
     if issueCommand(exportCommand):
@@ -355,9 +366,12 @@ def main():
     
     # commit the info plist
     logMessage = buildConfig['COMMIT_LOG_TEMPLATE'] % buildConfig['APP_VERSION']
-    commitCommand = 'svn commit -m "%s" "%s"' % (logMessage, buildConfig['INFO_PLIST_PATH'])
+    commitOptions = []
+    commitOptions.append(optionGenerator('-m', logMessage))
     if 'SVN_USER' in buildConfig and 'SVN_PASSWORD' in buildConfig:
-        commitCommand = 'svn commit -m "%s" --username "%s" --password "%s" "%s"' % (logMessage, buildConfig['SVN_USER'], buildConfig['SVN_PASSWORD'], buildConfig['INFO_PLIST_PATH'])
+        commitOptions.append(optionGenerator('--username', buildConfig['SVN_USER']))
+        commitOptions.append(optionGenerator('--password', buildConfig['SVN_PASSWORD']))
+    commitCommand = 'svn commit %s "%s"' % (' '.join(commitOptions), buildConfig['INFO_PLIST_PATH'])
     issueCommand(commitCommand)
     
     zippedIpas = zip(ipas, ipasToExport)
