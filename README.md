@@ -1,8 +1,6 @@
 releaseIpa
 ==========
 
-iOS app release automation for my company.
-
 Done by releaseIpa.py, config.json and mailBody.html(configurable). 
 However, editing release notes is still done manually.
 
@@ -23,6 +21,7 @@ However, editing release notes is still done manually.
 ##### mailBody.html
 
 * The body of this file will become the e-mail contents
+* %s will be replaced with the friendly app name, version and download links
 
 ##### What releaseIpa Does
 
