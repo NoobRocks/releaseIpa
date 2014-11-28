@@ -361,7 +361,7 @@ def main():
     # generate ipas
     ipasToExport = buildConfig['BUILD_PROFILES']
     ipas = map(lambda ipaInfo: exportIpa(ipaInfo), ipasToExport)
-    if not ipas:
+    if not ipas or not all(ipas):
         return
     
     # commit the info plist
