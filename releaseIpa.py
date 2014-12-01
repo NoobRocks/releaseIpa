@@ -68,13 +68,21 @@ def generateBuildName(appName, appVersion, appBuild = None, suffix = None):
         ipaNameComponents.append(suffix)
     return '_'.join(ipaNameComponents)
     
+def generateUniqueFileName(fileName):
+    nameTuple = os.path.splitext(fileName)
+    number = 1
+    while os.path.exists(fileName):
+        number += 1
+        fileName = '%s_%d%s' % (nameTuple[0], number, nameTuple[1])
+    return fileName
+    
 def issueCommand(command):
     print 'issue', command
     if isinstance(command, unicode):
         command = command.encode('utf-8')
     arguments = shlex.split(command)
     
-    logFile = 'issueCommandLog'
+    logFile = generateUniqueFileName('issueCommandLog')
     pOut = open(logFile, 'w+')
     p = Popen(arguments, stdout = pOut)
     p.wait()
