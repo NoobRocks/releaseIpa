@@ -147,6 +147,15 @@ def exportIpa(ipaInfo):
     
     return exportPath
     
+def printProgress(progress, ongoing):
+    message = '%3d%%' % min(progress, 100)
+    if ongoing:
+        sys.stdout.write(message)
+        sys.stdout.write('\b' * len(message))
+        sys.stdout.flush()
+    else:
+        print message
+    
 def GoogleDriveMakeWholeDirectory(driveService, directory):
     components = splitPathIntoComponents(directory)
     folderID = None
@@ -209,7 +218,15 @@ def uploadToGoogleDrive(filePaths, transferInfo):
   	            'id': targetFolderID
             }]
         }
-        uploadedFile = drive_service.files().insert(body = body, media_body = media_body).execute()
+        print 'uploading %s......' % filePath,
+        uploadRequest = drive_service.files().insert(body = body, media_body = media_body)
+        uploadedFile = None
+        while uploadedFile is None:
+            uploadStatus, uploadedFile = uploadRequest.next_chunk()
+            if uploadStatus:
+                printProgress(int(uploadStatus.progress() * 100), uploadedFile is None)
+            elif uploadedFile:
+                printProgress(100, False)
 
         # modify the permission
         new_permission = {
@@ -238,6 +255,15 @@ def splitPathIntoComponents(path):
             
     return components
     
+class FTPUploadProgressHandler(object):
+    def __init__(self, expectedSize):
+        self.__totalUploadedSize = 0
+        self.expectedSize = expectedSize
+        
+    def update(self, uploadedSize):
+        self.__totalUploadedSize += uploadedSize
+        printProgress(int(self.__totalUploadedSize / float(self.expectedSize) * 100), self.__totalUploadedSize < self.expectedSize)
+    
 def FTPMakeWholeDirectory(FTPClient, directory):
     components = splitPathIntoComponents(directory)
     for component in components:
@@ -265,9 +291,12 @@ def uploadToFTPServer(filePaths, transferInfo):
             print '%s may not exist. Create one' % buildDir
             FTPMakeWholeDirectory(FTPClient, buildDir)
         for filePath in filePaths:
-            FTPCommand = 'STOR %s' % os.path.split(filePath)[1]
+            print 'uploading %s......' % filePath,
             fileHandles.append(open(filePath, 'rb'))
-            FTPClient.storbinary(FTPCommand, fileHandles[-1])
+            FTPCommand = 'STOR %s' % os.path.split(filePath)[1]
+            blockSize = 8192
+            progressHandler = FTPUploadProgressHandler(os.path.getsize(filePath))
+            FTPClient.storbinary(FTPCommand, fileHandles[-1], blockSize, lambda block: progressHandler.update(blockSize))
             filesUploaded.append('%s://%s/%s/%s/%s' % (loginInfo.scheme, loginInfo.hostname, loginInfo.username, buildDir,\
                                  os.path.split(filePath)[1]))
     except:
