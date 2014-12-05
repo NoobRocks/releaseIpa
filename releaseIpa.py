@@ -15,6 +15,7 @@ import json
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import webbrowser
 
 import httplib2
 from apiclient.discovery import build
@@ -203,7 +204,8 @@ def uploadToGoogleDrive(filePaths, transferInfo):
     if not credentials or not credentials.refresh_token:
         flow = OAuth2WebServerFlow(transferInfo['CLIENT_ID'], transferInfo['CLIENT_SECRET'], OAUTH_SCOPE, REDIRECT_URI)
         authorize_url = flow.step1_get_authorize_url()
-        print 'Go to the following link in your browser: ' + authorize_url
+        webbrowser.open_new(authorize_url)
+        print 'Could not find valid credentials. Re-request access rights.'
         code = raw_input('Enter verification code: ').strip()
         credentials = flow.step2_exchange(code)
         credentialsStorage.put(credentials)
