@@ -390,7 +390,8 @@ def main():
     os.chdir('..')
     
     # svn update
-    issueCommand('svn update')
+    if not issueCommand('svn update'):
+        return
     
     # version should be fixed
     plistEditor = PlistEditor(buildConfig['INFO_PLIST_PATH'])
@@ -411,7 +412,8 @@ def main():
         commitOptions.append(optionGenerator('--username', buildConfig['SVN_USER']))
         commitOptions.append(optionGenerator('--password', buildConfig['SVN_PASSWORD']))
     commitCommand = 'svn commit %s "%s"' % (' '.join(commitOptions), buildConfig['INFO_PLIST_PATH'])
-    issueCommand(commitCommand)
+    if not issueCommand(commitCommand):
+        return
     
     zippedIpas = zip(ipas, ipasToExport)
     
@@ -421,11 +423,15 @@ def main():
     ipasToUploadToGoogleDrive = filteredIpas(zippedIpas, lambda ipaTuple: ipaTuple[1]['uploadsToGoogleDrive'])
     print 'upload %s to %s of Google Drive' % (str(ipasToUploadToGoogleDrive), buildConfig['GOOGLE_API_CLIENT_INFO']['GOOGLE_DRIVE_PATH'])
     GDriveLinkList = uploadToGoogleDrive(ipasToUploadToGoogleDrive, buildConfig['GOOGLE_API_CLIENT_INFO'])
+    if len(ipasToUploadToGoogleDrive) != len(GDriveLinkList) or not all(GDriveLinkList):
+        return
         
     # upload to FTP server
     ipasToUploadToFTPServer = filteredIpas(zippedIpas, lambda ipaTuple: ipaTuple[1]['uploadsToFTPServer'])
     print 'upload %s to %s of %s' % (str(ipasToUploadToFTPServer), buildConfig['FTP_SERVER_BUILD_DIRECTORY'], buildConfig['FTP_SERVER_URL'])
     FTPLinkList = uploadToFTPServer(ipasToUploadToFTPServer, buildConfig)
+    if len(ipasToUploadToFTPServer) != len(FTPLinkList):
+        return
     
     # find description for the link
     zippedGDriveIpaList = zip(ipasToUploadToGoogleDrive, GDriveLinkList)
