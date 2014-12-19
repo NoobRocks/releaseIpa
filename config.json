@@ -20,14 +20,14 @@
 ],
 "SVN_USER": "user_name",
 "SVN_PASSWORD": "user_password",
-"COMMIT_LOG_TEMPLATE": "[WHAT]\nrelease %s\n[WHY]\n[HOW]",
+"COMMIT_LOG_TEMPLATE": "[WHAT]\nrelease {APP_VERSION}\n[WHY]\n[HOW]",
 "MAIL_TRANSFER_INFO": {
 "SMTPServer": "0.0.0.0",
 "SMTPUser": "domain\\user",
 "SMTPUserAddress": "<user@domain>",
 "SMTPPassword": "password",
 "bodyFile": "mailBody.html",
-"titleTemplate": "iOS %s v%s已發佈",
+"titleTemplate": "iOS {FRIENDLY_APP_NAME} v{APP_VERSION}已發佈",
 "toUsers": [
 "user1@domain",
 "user2@domain",

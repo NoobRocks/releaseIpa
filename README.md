@@ -21,7 +21,7 @@ However, editing release notes is still done manually.
 ##### mailBody.html
 
 * The body of this file will become the e-mail contents
-* %s will be replaced with the friendly app name, version and download links
+* {FRIENDLY_APP_NAME}, {APP_VERSION}, and {DOWNLOAD_LINKS} will be replaced with the friendly app name, version and download links, respectively
 
 ##### What releaseIpa Does
 

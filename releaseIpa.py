@@ -358,6 +358,12 @@ def generateHTMLHyperlinkListItems(linkList, linkDescriptions):
         else:
             HTMLListItems = HTMLListItems + '<li><a href="%s">%s</a></li>\n' % (link, link)
     return HTMLListItems
+    
+def composeMailBody(filePath, keywordDict):
+    bodyFile = codecs.open(filePath, 'rb', 'utf-8')
+    body = bodyFile.read()
+    bodyFile.close()
+    return body.format(**keywordDict)
 
 def main():
     # check and load config
@@ -405,7 +411,7 @@ def main():
         return
     
     # commit the info plist
-    logMessage = buildConfig['COMMIT_LOG_TEMPLATE'] % buildConfig['APP_VERSION']
+    logMessage = buildConfig['COMMIT_LOG_TEMPLATE'].format(**buildConfig)
     commitOptions = []
     commitOptions.append(optionGenerator('-m', logMessage))
     if 'SVN_USER' in buildConfig and 'SVN_PASSWORD' in buildConfig:
@@ -443,13 +449,11 @@ def main():
     if GDriveLinkList or FTPLinkList:
         mailTransferInfo = buildConfig['MAIL_TRANSFER_INFO']
         print 'send notification mail to %s' % str(mailTransferInfo['toUsers'])
-        mailTitle = mailTransferInfo['titleTemplate'] % (buildConfig['FRIENDLY_APP_NAME'], buildConfig['APP_VERSION'])
-        bodyFile = codecs.open(mailTransferInfo['bodyFile'], 'rb', 'utf-8')
-        body = bodyFile.read()
-        HTMLLinkListItems = generateHTMLHyperlinkListItems(GDriveLinkList + FTPLinkList, dict(linkDescriptions))
-        body = body % (buildConfig['FRIENDLY_APP_NAME'], buildConfig['APP_VERSION'], HTMLLinkListItems)
+        mailTitle = mailTransferInfo['titleTemplate'].format(**buildConfig)
+        keywordDict = buildConfig.copy()
+        keywordDict['DOWNLOAD_LINKS'] = generateHTMLHyperlinkListItems(GDriveLinkList + FTPLinkList, dict(linkDescriptions))
+        body = composeMailBody(mailTransferInfo['bodyFile'], keywordDict)
         sendNotificationMail(mailTitle, body, mailTransferInfo)
-        bodyFile.close()
 
 thisFileFolderName = os.path.split(os.getcwd())[1]
 projectPath = os.path.split(os.getcwd())[0]
