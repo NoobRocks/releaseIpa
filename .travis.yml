@@ -1,0 +1,7 @@
+language: python
+python:
+  - "2.7"
+install:
+  - pip install --upgrade google-api-python-client
+script:
+  - python -m compileall -f .
