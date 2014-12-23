@@ -20,6 +20,7 @@ import webbrowser
 import httplib2
 from apiclient.discovery import build
 from apiclient.http import MediaFileUpload
+from apiclient.http import BatchHttpRequest
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
 
@@ -164,36 +165,101 @@ def printProgress(progress, ongoing):
         sys.stdout.flush()
     else:
         print message
+        
+def splitPathIntoComponents(path):
+    components = []
+    if not isinstance(path, basestring):
+        return components
     
-def GoogleDriveMakeWholeDirectory(driveService, directory):
-    components = splitPathIntoComponents(directory)
-    folderID = None
-    folderCreated = False
-    for component in components:
-        if not folderCreated:
-            if folderID:
-                queriedFolder = driveService.children().list(folderId = folderID, q = 'mimeType=\'application/vnd.google-apps.folder\' and title=\'%s\'' % component).execute()
-            else:
-                queriedFolder = driveService.files().list(q = 'mimeType=\'application/vnd.google-apps.folder\' and title=\'%s\'' % component).execute()
-        if folderCreated or len(queriedFolder['items']) < 1:
-            if folderID:
-                body = {
-                    'title': component,
-                    'mimeType': 'application/vnd.google-apps.folder',
-                    'parents': [{
-                    	'id': folderID
-                    }]
-                }
-            else:
+    while True:
+        pathTuple = os.path.split(path)
+        components.insert(0, pathTuple[1])
+        path = pathTuple[0]        
+        if not path:
+            break
+            
+    return components
+    
+class GoogleDriveManager(object):
+    def __init__(self):
+        self.service = None
+        self.http = httplib2.Http()
+        
+    def authorize(self, credentials):
+        self.http = credentials.authorize(self.http)
+        self.service = build('drive', 'v2', http=self.http)
+        
+    def makeDirectory(self, directory):
+        components = splitPathIntoComponents(directory)
+        folderID = None
+        folderCreated = False
+        for component in components:
+            if not folderCreated:
+                if folderID:
+                    queriedFolder = self.service.children().list(folderId = folderID, q = 'mimeType=\'application/vnd.google-apps.folder\' and title=\'%s\'' % component).execute()
+                else:
+                    queriedFolder = self.service.files().list(q = 'mimeType=\'application/vnd.google-apps.folder\' and title=\'%s\'' % component).execute()
+            if folderCreated or len(queriedFolder['items']) < 1:
                 body = {
                     'title': component,
                     'mimeType': 'application/vnd.google-apps.folder'
-                }
-            folderID = driveService.files().insert(body = body).execute()['id']
-            folderCreated = True
+                }            
+                if folderID:
+                    body['parents'] = [{
+                        'id': folderID
+                    }]
+                folderID = self.service.files().insert(body = body).execute()['id']
+                folderCreated = True
+            else:
+                folderID = queriedFolder['items'][0]['id']
+        return folderID
+        
+    def insertFile(self, filePath, folderID, progressCallback = None):
+        media_body = MediaFileUpload(filePath, mimetype='application/octet-stream', resumable=True)
+        body = {
+            'title': os.path.split(filePath)[1],
+            'mimeType': 'application/octet-stream',
+            'parents': [{
+  	            'kind': 'drive#fileLink',
+  	            'id': folderID
+            }]
+        }
+        
+        uploadRequest = self.service.files().insert(body = body, media_body = media_body)
+        uploadedFile = None
+        if callable(progressCallback):
+            while uploadedFile is None:
+                uploadStatus, uploadedFile = uploadRequest.next_chunk()
+                if uploadStatus:
+                    progressCallback(uploadStatus.progress())
+                elif uploadedFile:
+                    progressCallback(1)
         else:
-            folderID = queriedFolder['items'][0]['id']
-    return folderID
+            uploadedFile = uploadRequest.execute()
+                
+        return uploadedFile['id']
+        
+    def insertPermission(self, fileIDs, permission):
+        makeRequest = lambda i: self.service.permissions().insert(fileId = fileIDs[i], body = permission)
+        return GoogleDriveManager.executeMultipleRequests(fileIDs, makeRequest)
+        
+    def getFileInfo(self, fileIDs):
+        makeRequest = lambda i: self.service.files().get(fileId = fileIDs[i])
+        return GoogleDriveManager.executeMultipleRequests(fileIDs, makeRequest)
+        
+    @staticmethod
+    def executeMultipleRequests(responseOrder, makeRequest):
+        responses = [None for i in xrange(len(responseOrder))]
+        def batchCallback(request_id, response, exception):
+            if exception:
+                return
+            responses[responseOrder.index(request_id)] = response
+
+        batch = BatchHttpRequest()
+        for i in xrange(len(responseOrder)):
+            batch.add(makeRequest(i), request_id = responseOrder[i], callback = batchCallback)
+        batch.execute()
+        return responses
     
 def uploadToGoogleDrive(filePaths, transferInfo):
     if not filePaths:
@@ -209,61 +275,28 @@ def uploadToGoogleDrive(filePaths, transferInfo):
         code = raw_input('Enter verification code: ').strip()
         credentials = flow.step2_exchange(code)
         credentialsStorage.put(credentials)
-        
-    http = httplib2.Http()
-    http = credentials.authorize(http)
     
-    drive_service = build('drive', 'v2', http=http)
+    driveManager = GoogleDriveManager()
+    driveManager.authorize(credentials)
 
-    filesUploaded = []
-    targetFolderID = GoogleDriveMakeWholeDirectory(drive_service, transferInfo['GOOGLE_DRIVE_PATH'])
+    fileIDs = []
+    targetFolderID = driveManager.makeDirectory(transferInfo['GOOGLE_DRIVE_PATH'])
     for filePath in filePaths:
-        # upload the file
-        media_body = MediaFileUpload(filePath, mimetype='application/octet-stream', resumable=True)
-        body = {
-            'title': os.path.split(filePath)[1],
-            'mimeType': 'application/octet-stream',
-            'parents': [{
-  	            'kind': 'drive#fileLink',
-  	            'id': targetFolderID
-            }]
-        }
         print 'uploading %s......' % filePath,
-        uploadRequest = drive_service.files().insert(body = body, media_body = media_body)
-        uploadedFile = None
-        while uploadedFile is None:
-            uploadStatus, uploadedFile = uploadRequest.next_chunk()
-            if uploadStatus:
-                printProgress(int(uploadStatus.progress() * 100), uploadedFile is None)
-            elif uploadedFile:
-                printProgress(100, False)
+        uploadedFileID = driveManager.insertFile(filePath, targetFolderID, lambda progress: printProgress(progress * 100, True))
+        printProgress(100, False)
+        fileIDs.append(uploadedFileID)
+        
+    new_permission = {
+        'type': 'anyone',
+        'role': 'reader',
+        'withLink': True
+    }
+    driveManager.insertPermission(fileIDs, new_permission)
 
-        # modify the permission
-        new_permission = {
-            'type': 'anyone',
-            'role': 'reader',
-            'withLink': True
-        }
-        drive_service.permissions().insert(fileId = uploadedFile['id'], body = new_permission).execute()
-
-        # get the link
-        uploadedFile = drive_service.files().get(fileId = uploadedFile['id']).execute()
-        filesUploaded.append(uploadedFile['webContentLink'])
-    return filesUploaded
-    
-def splitPathIntoComponents(path):
-    components = []
-    if not isinstance(path, basestring):
-        return components
-    
-    while True:
-        pathTuple = os.path.split(path)
-        components.insert(0, pathTuple[1])
-        path = pathTuple[0]        
-        if not path:
-            break
-            
-    return components
+    # get the link
+    uploadedFileInfo = driveManager.getFileInfo(fileIDs)
+    return map(lambda fileInfo: fileInfo['webContentLink'], uploadedFileInfo)
     
 class FTPUploadProgressHandler(object):
     def __init__(self, expectedSize):
