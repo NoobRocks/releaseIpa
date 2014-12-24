@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from subprocess import Popen, PIPE
+from subprocess import Popen
 import os
 from datetime import date
 import shlex
@@ -439,7 +439,7 @@ def main():
     
     # generate ipas
     ipasToExport = buildConfig['BUILD_PROFILES']
-    ipas = map(lambda ipaInfo: exportIpa(ipaInfo), ipasToExport)
+    ipas = map(exportIpa, ipasToExport)
     if not ipas or not all(ipas):
         return
     
