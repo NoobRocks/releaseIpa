@@ -3,5 +3,6 @@ python:
   - "2.7"
 install:
   - pip install --upgrade google-api-python-client
+  - pip install pylint
 script:
-  - python -m compileall -f .
+  - find . -regex ".*\.py" -print0 | xargs -0 pylint --errors-only --disable=print-statement
