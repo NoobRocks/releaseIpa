@@ -32,7 +32,11 @@
 "user1@domain",
 "user2@domain",
 "user3@domain"
-]
+],
+"bugCodeURLs": {
+"[A-Z]{3}-\\d+": "http://jira_addr/browse/{BUG_CODE}",
+"\\d{7,}": "http://mantis_addr/view.php?id={BUG_CODE}"
+}
 },
 "GOOGLE_API_CLIENT_INFO": {
 "CLIENT_ID": "client_id",

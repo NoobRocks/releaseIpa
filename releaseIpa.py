@@ -30,10 +30,23 @@ REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
 
 buildConfig = None
 
-class PlistEditor(object):
+class BaseEditor(object):
     def __init__(self, filePath):
         self.fileHandle = codecs.open(filePath, 'r+', 'utf-8')
         self.fileData = self.fileHandle.read()
+            
+    def commit(self):
+        self.fileHandle.seek(0)
+        self.fileHandle.truncate()
+        self.fileHandle.write(self.fileData)
+        self.fileHandle.close()
+        
+    def discard(self):
+        self.fileHandle.close()
+
+class PlistEditor(BaseEditor):
+    def __init__(self, filePath):
+        super(PlistEditor, self).__init__(filePath)
     
     def replaceSimpleValue(self, key, value, valueType = 'string'):
         pattern = r'<key>%s</key>\s+<%s>.+</%s>' % (key, valueType, valueType)
@@ -47,15 +60,6 @@ class PlistEditor(object):
             return match.group(1)
         else:
             return None
-            
-    def commit(self):
-        self.fileHandle.seek(0)
-        self.fileHandle.truncate()
-        self.fileHandle.write(self.fileData)
-        self.fileHandle.close()
-        
-    def discard(self):
-        self.fileHandle.close()
 
 def generateBuildName(appName, appVersion, appBuild = None, suffix = None):
     def generateCurrentDateString():
@@ -392,11 +396,32 @@ def generateHTMLHyperlinkListItems(linkList, linkDescriptions):
             HTMLListItems = HTMLListItems + '<li><a href="%s">%s</a></li>\n' % (link, link)
     return HTMLListItems
     
-def composeMailBody(filePath, keywordDict):
-    bodyFile = codecs.open(filePath, 'rb', 'utf-8')
-    body = bodyFile.read()
-    bodyFile.close()
-    return body.format(**keywordDict)
+def indexOfValidValue(iterable):
+    for index, value in enumerate(iterable):
+        if value:
+            return index
+    return -1
+    
+class MailBodyEditor(BaseEditor):
+    def __init__(self, filePath):
+        super(MailBodyEditor, self).__init__(filePath)    
+    
+    def linkifyBugCodes(self, bugURLMap):
+        if not bugURLMap:
+            return
+            
+        bugURLs = bugURLMap.items()
+        # a '#' followed by a pattern represents an issue
+        bugURLPattern = '|'.join(['#(%s)' % bugURL[0] for bugURL in bugURLs])
+    
+        def getBugURL(match):
+            groupIndex = indexOfValidValue(match.groups(None)) + 1
+            URL = bugURLs[groupIndex - 1][1].format(**{'BUG_CODE': match.group(groupIndex)})
+            return '<a href="%s">%s</a>' % (URL, match.group(groupIndex))
+        self.fileData = re.sub(bugURLPattern, getBugURL, self.fileData)
+    
+    def replaceKeywords(self, keywordDict):
+        self.fileData = self.fileData.format(**keywordDict)
 
 def main():
     # check and load config
@@ -483,10 +508,13 @@ def main():
         mailTransferInfo = buildConfig['MAIL_TRANSFER_INFO']
         print 'send notification mail to %s' % str(mailTransferInfo['toUsers'])
         mailTitle = mailTransferInfo['titleTemplate'].format(**buildConfig)
+        bodyEditor = MailBodyEditor(mailTransferInfo['bodyFile'])
         keywordDict = buildConfig.copy()
         keywordDict['DOWNLOAD_LINKS'] = generateHTMLHyperlinkListItems(GDriveLinkList + FTPLinkList, dict(linkDescriptions))
-        body = composeMailBody(mailTransferInfo['bodyFile'], keywordDict)
-        sendNotificationMail(mailTitle, body, mailTransferInfo)
+        bodyEditor.replaceKeywords(keywordDict)
+        bodyEditor.linkifyBugCodes(mailTransferInfo.get('bugCodeURLs', None))
+        sendNotificationMail(mailTitle, bodyEditor.fileData, mailTransferInfo)
+        bodyEditor.discard()
 
 thisFileFolderName = os.path.split(os.getcwd())[1]
 projectPath = os.path.split(os.getcwd())[0]
