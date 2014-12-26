@@ -394,7 +394,7 @@ def generateHTMLHyperlinkListItems(linkList, linkDescriptions):
             HTMLListItems = HTMLListItems + '<li><a href="%s">%s</a>(%s)</li>\n' % (link, link, linkDescriptions[link])
         else:
             HTMLListItems = HTMLListItems + '<li><a href="%s">%s</a></li>\n' % (link, link)
-    return HTMLListItems
+    return '<ul>%s</ul>' % HTMLListItems
     
 def indexOfValidValue(iterable):
     for index, value in enumerate(iterable):
