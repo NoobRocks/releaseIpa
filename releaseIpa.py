@@ -396,12 +396,6 @@ def generateHTMLHyperlinkListItems(linkList, linkDescriptions):
             HTMLListItems = HTMLListItems + '<li><a href="%s">%s</a></li>\n' % (link, link)
     return '<ul>%s</ul>' % HTMLListItems
     
-def indexOfValidValue(iterable):
-    for index, value in enumerate(iterable):
-        if value:
-            return index
-    return -1
-    
 class MailBodyEditor(BaseEditor):
     def __init__(self, filePath):
         super(MailBodyEditor, self).__init__(filePath)    
@@ -411,13 +405,20 @@ class MailBodyEditor(BaseEditor):
             return
             
         bugURLs = bugURLMap.items()
+        groupPrefix = 'group'
         # a '#' followed by a pattern represents an issue
-        bugURLPattern = '|'.join(['#(%s)' % bugURL[0] for bugURL in bugURLs])
+        bugURLPattern = '|'.join(['#(?P<%s>%s)' % (groupPrefix + str(index), bugURL[0]) for index, bugURL in enumerate(bugURLs)])
+        
+        def keyOfValidValue(dictionary):
+            for key in dictionary:
+                if dictionary[key]:
+                    return key
+            return None
     
         def getBugURL(match):
-            groupIndex = indexOfValidValue(match.groups(None)) + 1
-            URL = bugURLs[groupIndex - 1][1].format(**{'BUG_CODE': match.group(groupIndex)})
-            return '<a href="%s">%s</a>' % (URL, match.group(groupIndex))
+            groupKey = keyOfValidValue(match.groupdict())
+            URL = bugURLs[int(groupKey[len(groupPrefix):])][1].format(**{'BUG_CODE': match.group(groupKey)})
+            return '<a href="%s">%s</a>' % (URL, match.group(groupKey))
         self.fileData = re.sub(bugURLPattern, getBugURL, self.fileData)
     
     def replaceKeywords(self, keywordDict):
