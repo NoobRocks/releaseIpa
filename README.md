@@ -18,11 +18,13 @@ However, editing release notes is still done manually.
 * For GOOGLE_DRIVE_PATH and FTP_SERVER_BUILD_DIRECTORY, the script will create the intermediate folders if they do not exist
 * versionDescription will be placed beside the link in the mail
 * If provisioningProfile is empty, signingIdentity must be specified
+* If you wish to make a bug code clickable, specify the bug code pattern and corresponding URL in bugCodeURLs. See [config.json](https://github.com/NoobRocks/releaseIpa/blob/master/config.json#L36) for an example
 
 ### mailBody.html
 
 * The body of this file will become the e-mail contents
 * {FRIENDLY_APP_NAME}, {APP_VERSION}, and {DOWNLOAD_LINKS} will be replaced with the friendly app name, version and download links, respectively
+* Prepend the bug code with a '#' to make it clickable. The '#' character will disappear in the resulting mail.(e.g. #NRS-123 becomes [NRS-123](http://jira_addr/browse/NRS-123))
 
 ### What releaseIpa Does
 
