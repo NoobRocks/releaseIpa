@@ -445,7 +445,8 @@ def uploadToFTPServer(filePaths, transferInfo):
         for filePath in filePaths:
             print 'uploading %s......' % filePath,
             fileHandles.append(open(filePath, 'rb'))
-            FTPCommand = 'STOR %s' % os.path.split(filePath)[1]
+            fileName = os.path.split(filePath)[1]
+            FTPCommand = 'STOR %s' % fileName.encode('utf-8') if isinstance(fileName, unicode) else fileName
             blockSize = 8192
             progressHandler = FTPUploadProgressHandler(os.path.getsize(filePath))
             FTPClient.storbinary(FTPCommand, fileHandles[-1], blockSize, lambda block: progressHandler.update(blockSize))
