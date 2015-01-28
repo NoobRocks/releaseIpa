@@ -60,20 +60,66 @@ class PlistEditor(BaseEditor):
             return match.group(1)
         else:
             return None
-
-def generateBuildName(appName, appVersion, appBuild = None, suffix = None):
-    def generateCurrentDateString():
-        currentDate = date.today()
-        return '%04d%02d%02d' % (currentDate.year, currentDate.month, currentDate.day)
-    
-    ipaNameComponents = [appName, generateCurrentDateString(), appVersion]
-    isValidComponent = lambda c: bool(isinstance(c, basestring) and c)
-    if isValidComponent(appBuild):
-        ipaNameComponents.append(appBuild)
-    if isValidComponent(suffix):
-        ipaNameComponents.append(suffix)
-    return '_'.join(ipaNameComponents)
-    
+            
+class BaseBuilderModel(object):
+    def __init__(self, buildInfo):
+        self.buildInfo = buildInfo
+        self.buildNumber = None
+        self.buildName = None        
+        
+    def __getitem__(self, key):
+        return self.buildInfo[key]
+        
+    def __contains__(self, key):
+        return key in self.buildInfo
+        
+    def __unicode__(self):
+        return u'%s(%s)' % (self.buildName, self.buildNumber)
+        
+    def getBuildName(self, buildProfile, appBuild = None):
+        pass
+        
+    def incrementBuildNumber(self, appBuild):
+        pass
+        
+    def nextBuildPathInfo(self, currentAppBuild, buildProfile):
+        self.buildNumber = self.incrementBuildNumber(currentAppBuild)
+        self.buildName = self.getBuildName(buildProfile, self.buildNumber)
+        
+class IpaBuilderModel(BaseBuilderModel):
+    def __init__(self, buildInfo):
+        super(IpaBuilderModel, self).__init__(buildInfo)
+        
+        self.outputFolder = os.path.join(self['EXPORT_PATH_PREFIX'], self['BUILD_FOLDER'])
+        self.archivePath = None
+        self.exportPath = None
+        
+    def getBuildName(self, buildProfile, appBuild = None):
+        def generateCurrentDateString():
+            currentDate = date.today()
+            return '%04d%02d%02d' % (currentDate.year, currentDate.month, currentDate.day)
+        
+        appName = self['FRIENDLY_APP_NAME'].replace(' ', '')
+        appVersion = self['APP_VERSION']
+        suffix = buildProfile['ipaNameSuffix']
+        ipaNameComponents = [appName, generateCurrentDateString(), appVersion]
+        isValidComponent = lambda c: bool(isinstance(c, basestring) and c)
+        if isValidComponent(appBuild):
+            ipaNameComponents.append(appBuild)
+        if isValidComponent(suffix):
+            ipaNameComponents.append(suffix)
+        return '_'.join(ipaNameComponents)
+        
+    def incrementBuildNumber(self, appBuild):
+        if not appBuild:
+            return
+        return str(int(appBuild) + 1)
+        
+    def nextBuildPathInfo(self, currentAppBuild, buildProfile):
+        super(IpaBuilderModel, self).nextBuildPathInfo(currentAppBuild if self['INCREMENT_BUILD_NUMBER'] else None, buildProfile)
+        self.archivePath = os.path.join(self.outputFolder, 'archives', self.buildName + '.xcarchive')
+        self.exportPath = os.path.join(self.outputFolder, self.buildName + '.ipa')
+        
 def generateUniqueFileName(fileName):
     nameTuple = os.path.splitext(fileName)
     number = 1
@@ -99,67 +145,126 @@ def issueCommand(command):
         os.remove(logFile)
     return os.EX_OK == p.returncode
     
-def incrementBuildNumber(appBuild):
-    return str(int(appBuild) + 1)
+optionGenerator = lambda name, value: '%s "%s"' % (name, value) if name and value else name or '"%s"' % value        
+            
+class BaseBuilder(object):
+    def __init__(self, model, verbose):
+        self.model = model
+        self.verbose = verbose
+        
+    def prepareRun(self):
+        pass
+        
+    def run(self):
+        if not self.prepareRun():
+            return
+        results = []
+        for profile in self.getProfiles():
+            self.prepareRunProfile(profile)
+            result = self.runProfile(profile)
+            if not result:
+                return
+            results.append(result)
+        self.runDone()
+        return results
+        
+    def runDone(self):
+        pass
+        
+    def prepareRunProfile(self, profile):
+        self.model.nextBuildPathInfo(self.getCurrentAppBuild(), profile)
+        if self.verbose:
+            print 'Build %s' % unicode(self.model)
+        
+    def runProfile(self, profile):
+        pass
+        
+    def getProfiles(self):
+        pass
+        
+    def getCurrentAppBuild(self):
+        pass
+        
+class IpaBuilder(BaseBuilder):
+    def __init__(self, model, verbose):
+        super(IpaBuilder, self).__init__(model, verbose)
+        
+        self.plistEditor = None
+        
+    def prepareRun(self):
+        if not issueCommand('svn update'):
+            return False
     
-optionGenerator = lambda name, value: '%s "%s"' % (name, value) if name and value else name or '"%s"' % value
-
-def exportIpa(ipaInfo):
-    # edit plist
-    plistEditor = PlistEditor(buildConfig['INFO_PLIST_PATH'])
-    plistEditor.replaceSimpleValue('CFBundleIdentifier', ipaInfo['bundleIdentifier'])
-    appBuild = None
-    canContinue = True
-    if buildConfig['INCREMENT_BUILD_NUMBER']:
-        appBuild = plistEditor.readSimpleValue('CFBundleVersion')
-        try:
-            appBuild = incrementBuildNumber(appBuild)
-            plistEditor.replaceSimpleValue('CFBundleVersion', appBuild)
-        except:
-            canContinue = False
-            excInfo = sys.exc_info()
-            traceback.print_exception(excInfo[0], excInfo[1], excInfo[2], limit = 2, file = sys.stdout)
-    plistEditor.commit()
-    if not canContinue:
-        return
-
-    print 'Build %s(%s)' % (buildConfig['APP_VERSION'], appBuild)
+        # version should be fixed
+        self.plistEditor = PlistEditor(self.model['INFO_PLIST_PATH'])
+        self.plistEditor.replaceSimpleValue('CFBundleShortVersionString', self.model['APP_VERSION'])
+        self.plistEditor.commit()
+        return True
+        
+    def runDone(self):
+        # commit the info plist
+        logMessage = self.model['COMMIT_LOG_TEMPLATE'].format(**self.model.buildInfo)
+        commitOptions = []
+        commitOptions.append(optionGenerator('-m', logMessage))
+        if 'SVN_USER' in self.model and 'SVN_PASSWORD' in self.model:
+            commitOptions.append(optionGenerator('--username', self.model['SVN_USER']))
+            commitOptions.append(optionGenerator('--password', self.model['SVN_PASSWORD']))
+        commitCommand = 'svn commit %s "%s"' % (' '.join(commitOptions), self.model['INFO_PLIST_PATH'])
+        issueCommand(commitCommand)
+        
+    def prepareRunProfile(self, profile):
+        self.plistEditor = PlistEditor(self.model['INFO_PLIST_PATH'])
+        
+        super(IpaBuilder, self).prepareRunProfile(profile)
+        
+    def runProfile(self, profile):
+        self.updatePlist(self.plistEditor, profile)
+        if not self.issueClean():
+            return
+        if not self.issueArchive(profile):
+            return
+        return self.issueExport(profile)
+        
+    def getProfiles(self):
+        return self.model['BUILD_PROFILES']
+        
+    def getCurrentAppBuild(self):
+        return self.plistEditor.readSimpleValue('CFBundleVersion')
     
-    # clean
-    cleanCommand = 'xcodebuild clean'
-    issueCommand(cleanCommand)
-    
-    buildName = generateBuildName(appName, buildConfig['APP_VERSION'], appBuild, ipaInfo['ipaNameSuffix'])
-    outputFolder = os.path.join(buildConfig['EXPORT_PATH_PREFIX'], appName)
-
-    # archive
-    scheme = ipaInfo['scheme']
-    archivePath = os.path.join(outputFolder, 'archives', buildName + '.xcarchive')
-    archiveCommand = 'xcodebuild -scheme "%s" archive -archivePath "%s"' % (scheme, archivePath)
-    if os.path.exists(archivePath):
-        shutil.rmtree(archivePath)
-    if not issueCommand(archiveCommand):
-        return
-
-    # export
-    exportPath = os.path.join(outputFolder, buildName + '.ipa')
-    exportOptions = []
-    exportOptions.append(optionGenerator('-exportArchive', ''))
-    exportOptions.append(optionGenerator('-exportFormat', 'ipa'))
-    exportOptions.append(optionGenerator('-archivePath', archivePath))
-    exportOptions.append(optionGenerator('-exportPath', exportPath))
-    exportProvisioningProfile = ipaInfo['provisioningProfile']
-    if exportProvisioningProfile:
-        exportOptions.append(optionGenerator('-exportProvisioningProfile', exportProvisioningProfile))
-    else:
-        exportOptions.append(optionGenerator('-exportSigningIdentity', ipaInfo['signingIdentity']))    
-    exportCommand = 'xcodebuild %s' % ' '.join(exportOptions)
-    if os.path.exists(exportPath):
-        os.remove(exportPath)
-    if issueCommand(exportCommand):
-        print exportPath, 'generated'
-    
-    return exportPath
+    def updatePlist(self, plistEditor, profile):
+        plistEditor.replaceSimpleValue('CFBundleIdentifier', profile['bundleIdentifier'])
+        if self.model.buildNumber:
+            plistEditor.replaceSimpleValue('CFBundleVersion', self.model.buildNumber)
+        self.plistEditor.commit()
+        
+    def issueClean(self):
+        cleanCommand = 'xcodebuild clean'
+        return issueCommand(cleanCommand)
+        
+    def issueArchive(self, profile):
+        scheme = profile['scheme']
+        archiveCommand = 'xcodebuild -scheme "%s" archive -archivePath "%s"' % (scheme, self.model.archivePath)
+        if os.path.exists(self.model.archivePath):
+            shutil.rmtree(self.model.archivePath)
+        return issueCommand(archiveCommand)
+        
+    def issueExport(self, profile):
+        exportOptions = []
+        exportOptions.append(optionGenerator('-exportArchive', ''))
+        exportOptions.append(optionGenerator('-exportFormat', 'ipa'))
+        exportOptions.append(optionGenerator('-archivePath', self.model.archivePath))
+        exportOptions.append(optionGenerator('-exportPath', self.model.exportPath))
+        exportProvisioningProfile = profile['provisioningProfile']
+        if exportProvisioningProfile:
+            exportOptions.append(optionGenerator('-exportProvisioningProfile', exportProvisioningProfile))
+        else:
+            exportOptions.append(optionGenerator('-exportSigningIdentity', profile['signingIdentity']))    
+        exportCommand = 'xcodebuild %s' % ' '.join(exportOptions)
+        if os.path.exists(self.model.exportPath):
+            os.remove(self.model.exportPath)
+        if not issueCommand(exportCommand):
+            return
+        return self.model.exportPath
     
 def printProgress(progress, ongoing):
     message = '%3d%%' % min(progress, 100)
@@ -454,33 +559,16 @@ def main():
     
     os.chdir('..')
     
-    # svn update
-    if not issueCommand('svn update'):
-        return
-    
-    # version should be fixed
-    plistEditor = PlistEditor(buildConfig['INFO_PLIST_PATH'])
-    plistEditor.replaceSimpleValue('CFBundleShortVersionString', buildConfig['APP_VERSION'])
-    plistEditor.commit()
-    
     # generate ipas
-    ipasToExport = buildConfig['BUILD_PROFILES']
-    ipas = map(exportIpa, ipasToExport)
+    buildInfo = buildConfig.copy()
+    buildInfo['BUILD_FOLDER'] = appName
+    builderModel = IpaBuilderModel(buildInfo)
+    builder = IpaBuilder(builderModel, True)
+    ipas = builder.run()
     if not ipas or not all(ipas):
         return
     
-    # commit the info plist
-    logMessage = buildConfig['COMMIT_LOG_TEMPLATE'].format(**buildConfig)
-    commitOptions = []
-    commitOptions.append(optionGenerator('-m', logMessage))
-    if 'SVN_USER' in buildConfig and 'SVN_PASSWORD' in buildConfig:
-        commitOptions.append(optionGenerator('--username', buildConfig['SVN_USER']))
-        commitOptions.append(optionGenerator('--password', buildConfig['SVN_PASSWORD']))
-    commitCommand = 'svn commit %s "%s"' % (' '.join(commitOptions), buildConfig['INFO_PLIST_PATH'])
-    if not issueCommand(commitCommand):
-        return
-    
-    zippedIpas = zip(ipas, ipasToExport)
+    zippedIpas = zip(ipas, builder.getProfiles())
     
     os.chdir(thisFileFolderName)
     
