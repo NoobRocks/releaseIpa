@@ -442,16 +442,17 @@ def uploadToFTPServer(filePaths, transferInfo):
         except ftplib.error_perm:
             print '%s may not exist. Create one' % buildDir
             FTPMakeWholeDirectory(FTPClient, buildDir)
+        buildDir = FTPClient.pwd()
         for filePath in filePaths:
             print 'uploading %s......' % filePath,
             fileHandles.append(open(filePath, 'rb'))
             fileName = os.path.split(filePath)[1]
-            FTPCommand = 'STOR %s' % fileName.encode('utf-8') if isinstance(fileName, unicode) else fileName
+            FTPCommand = 'STOR %s' % (fileName.encode('utf-8') if isinstance(fileName, unicode) else fileName,)
             blockSize = 8192
             progressHandler = FTPUploadProgressHandler(os.path.getsize(filePath))
             FTPClient.storbinary(FTPCommand, fileHandles[-1], blockSize, lambda block: progressHandler.update(blockSize))
-            filesUploaded.append('%s://%s/%s/%s/%s' % (loginInfo.scheme, loginInfo.hostname, loginInfo.username, buildDir,\
-                                 os.path.split(filePath)[1]))
+            FTPLink = '%s://%s%s' % (loginInfo.scheme, loginInfo.hostname, os.path.join(buildDir, os.path.split(filePath)[1]))
+            filesUploaded.append(FTPLink)
     except:
         excInfo = sys.exc_info()
         traceback.print_exception(excInfo[0], excInfo[1], excInfo[2], limit = 2, file = sys.stdout)
