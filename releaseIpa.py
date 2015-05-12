@@ -49,12 +49,12 @@ class PlistEditor(BaseEditor):
         super(PlistEditor, self).__init__(filePath)
     
     def replaceSimpleValue(self, key, value, valueType = 'string'):
-        pattern = r'<key>%s</key>\s+<%s>.+</%s>' % (key, valueType, valueType)
+        pattern = r'<key>%s</key>\s*<%s>[^<>]+</%s>' % (key, valueType, valueType)
         substitute = '<key>%s</key>\n\t<%s>%s</%s>' % (key, valueType, value, valueType)
         self.fileData = re.sub(pattern, substitute, self.fileData, flags = re.IGNORECASE)
         
     def readSimpleValue(self, key, valueType = 'string'):
-        pattern = r'<key>%s</key>\s+<%s>(.+)</%s>' % (key, valueType, valueType)
+        pattern = r'<key>%s</key>\s*<%s>([^<>]+)</%s>' % (key, valueType, valueType)
         match = re.search(pattern, self.fileData, flags = re.IGNORECASE)
         if match is not None:
             return match.group(1)
