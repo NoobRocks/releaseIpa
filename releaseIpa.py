@@ -28,8 +28,6 @@ CREDENTIALS_FILE = 'credentials'
 OAUTH_SCOPE = 'https://www.googleapis.com/auth/drive'
 REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
 
-buildConfig = None
-
 class BaseEditor(object):
     def __init__(self, filePath):
         self.fileHandle = codecs.open(filePath, 'r+', 'utf-8')
@@ -534,7 +532,7 @@ class MailBodyEditor(BaseEditor):
 def main():
     # check and load config
     canContinue = True
-    global buildConfig
+    buildConfig = None
     configFile = None
     try:
         configFile = open('config.json', 'r')
@@ -556,6 +554,11 @@ def main():
         configFile.close()
     if not canContinue:
         return
+
+    thisFileFolderName = os.path.split(os.getcwd())[1]
+    projectPath = os.path.split(os.getcwd())[0]
+    appName = os.path.split(projectPath)[1] # app name defaults to the folder name where app resides
+    appName = appName.replace(' ', '') # trim the spaces
 
     print 'Export ipa of', appName
     
@@ -606,11 +609,6 @@ def main():
         bodyEditor.linkifyBugCodes(mailTransferInfo.get('bugCodeURLs', None))
         sendNotificationMail(mailTitle, bodyEditor.fileData, mailTransferInfo)
         bodyEditor.discard()
-
-thisFileFolderName = os.path.split(os.getcwd())[1]
-projectPath = os.path.split(os.getcwd())[0]
-appName = os.path.split(projectPath)[1] # app name defaults to the folder name where app resides
-appName = appName.replace(' ', '') # trim the spaces
 
 if '__main__' == __name__:
     main()
