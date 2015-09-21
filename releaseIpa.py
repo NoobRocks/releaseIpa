@@ -528,9 +528,8 @@ class MailBodyEditor(BaseEditor):
     
     def replaceKeywords(self, keywordDict):
         self.fileData = self.fileData.format(**keywordDict)
-
-def main():
-    # check and load config
+        
+def loadConfig():
     canContinue = True
     buildConfig = None
     configFile = None
@@ -543,15 +542,19 @@ def main():
                                'FTP_SERVER_BUILD_DIRECTORY', 'INCREMENT_BUILD_NUMBER', 'BUILD_PROFILES',\
                                'COMMIT_LOG_TEMPLATE', 'MAIL_TRANSFER_INFO', 'GOOGLE_API_CLIENT_INFO',\
                                'FRIENDLY_APP_NAME'])
-        canContinue = loadedKeysSet.issuperset(requiredKeysSet)
-        if not canContinue:
+        if not loadedKeysSet.issuperset(requiredKeysSet):
             print 'some required keys are missing'
+            canContinue = False
     except:
         canContinue = False
         excInfo = sys.exc_info()
         traceback.print_exception(excInfo[0], excInfo[1], excInfo[2], limit = 2, file = sys.stdout)
     if configFile:
         configFile.close()
+    return canContinue, buildConfig
+        
+def main():
+    canContinue, buildConfig = loadConfig()
     if not canContinue:
         return
 
