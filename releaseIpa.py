@@ -249,17 +249,25 @@ class IpaBuilder(BaseBuilder):
     def issueExport(self, profile):
         exportOptions = []
         exportOptions.append(optionGenerator('-exportArchive', ''))
-        exportOptions.append(optionGenerator('-exportFormat', 'ipa'))
+        optionsPlist = profile.get('exportOptionsPlist')
+        if optionsPlist:
+            optionsPlist = os.path.join(self.model['THIS_FILE_FOLDER'], optionsPlist)
+            exportOptions.append(optionGenerator('-exportOptionsPlist', optionsPlist))
+        else:
+            exportOptions.append(optionGenerator('-exportFormat', 'ipa'))
+            exportProvisioningProfile = profile['provisioningProfile']
+            if exportProvisioningProfile:
+                exportOptions.append(optionGenerator('-exportProvisioningProfile', exportProvisioningProfile))
+            else:
+                exportOptions.append(optionGenerator('-exportSigningIdentity', profile['signingIdentity']))            
         exportOptions.append(optionGenerator('-archivePath', self.model.archivePath))
         exportOptions.append(optionGenerator('-exportPath', self.model.exportPath))
-        exportProvisioningProfile = profile['provisioningProfile']
-        if exportProvisioningProfile:
-            exportOptions.append(optionGenerator('-exportProvisioningProfile', exportProvisioningProfile))
-        else:
-            exportOptions.append(optionGenerator('-exportSigningIdentity', profile['signingIdentity']))    
         exportCommand = 'xcodebuild %s' % ' '.join(exportOptions)
         if os.path.exists(self.model.exportPath):
-            os.remove(self.model.exportPath)
+            if os.path.isdir(self.model.exportPath):
+                shutil.rmtree(self.model.exportPath)
+            else:
+                os.remove(self.model.exportPath)
         if not issueCommand(exportCommand):
             return
         return self.model.exportPath
@@ -570,6 +578,7 @@ def main():
     # generate ipas
     buildInfo = buildConfig.copy()
     buildInfo['BUILD_FOLDER'] = appName
+    buildInfo['THIS_FILE_FOLDER'] = thisFileFolderName
     builderModel = IpaBuilderModel(buildInfo)
     builder = IpaBuilder(builderModel, True)
     ipas = builder.run()

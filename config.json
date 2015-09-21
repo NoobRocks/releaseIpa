@@ -15,7 +15,8 @@
 "signingIdentity": "signing_identity",
 "uploadsToGoogleDrive": true,
 "uploadsToFTPServer": true,
-"versionDescription": ""
+"versionDescription": "",
+"exportOptionsPlist": "export_options.plist"
 }
 ],
 "SVN_USER": "user_name",
