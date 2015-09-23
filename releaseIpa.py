@@ -270,7 +270,19 @@ class IpaBuilder(BaseBuilder):
                 os.remove(self.model.exportPath)
         if not issueCommand(exportCommand):
             return
+        if os.path.isdir(self.model.exportPath):
+            self.moveProduct()
         return self.model.exportPath
+
+    def moveProduct(self):
+        for fileName in os.listdir(self.model.exportPath):
+            if os.path.splitext(fileName)[1].lower() != '.ipa' or not os.path.isfile(os.path.join(self.model.exportPath, fileName)):
+                continue
+            parentDirectory = os.path.split(self.model.exportPath)[0]
+            shutil.copy2(os.path.join(self.model.exportPath, fileName), parentDirectory)
+            shutil.rmtree(self.model.exportPath)
+            os.rename(os.path.join(parentDirectory, fileName), self.model.exportPath)
+            return
     
 def printProgress(progress, ongoing):
     message = '%3d%%' % min(progress, 100)
