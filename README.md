@@ -18,6 +18,7 @@ However, editing release notes is still done manually.
 * For GOOGLE_DRIVE_PATH and FTP_SERVER_BUILD_DIRECTORY, the script will create the intermediate folders if they do not exist
 * versionDescription will be placed beside the link in the mail
 * If provisioningProfile is empty, signingIdentity must be specified
+* exportOptionsPlist is the plist used when the archive is exported. It should be put at the same directory as this script. Run `xcodebuild -help` for available keys in the plist
 * If you wish to make a bug code clickable, specify the bug code pattern and corresponding URL in bugCodeURLs. See [config.json](https://github.com/NoobRocks/releaseIpa/blob/master/config.json#L36) for an example
 
 ### mailBody.html
